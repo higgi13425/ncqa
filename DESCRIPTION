@@ -1,16 +1,16 @@
 Type: Compendium
 Package: NCQA_analysis
-Title: What the Package Does (One Line, Title Case)
+Title: Health Insurance analysis with NCQA data
 Version: 0.0.1
 Authors@R: 
-    person(given = "First",
-           family = "Last",
+    person(given = "Peter",
+           family = "Higgis",
            role = c("aut", "cre"),
            email = "first.last@example.com",
            comment = c(ORCID = "YOUR-ORCID-ID"))
 Description: An Analysis of US Health Insurance
     Satisfaction
-License: What license it uses
+License: GNU
 Depends: 
     arsenal,
     broom,
@@ -43,6 +43,7 @@ Depends:
     readr,
     readxl,
     rmarkdown,
+    roxygen2,
     rvest,
     scales,
     sf,
