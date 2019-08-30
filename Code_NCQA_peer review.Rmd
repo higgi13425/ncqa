@@ -1,0 +1,987 @@
+---
+title: "NCQA Health Insurance with KFF Predictors"
+author: "Megan McLeod, Jeff Berinstein, and Peter Higgins"
+date: "3/26/19"
+output:
+  html_document: default
+bibliography: NCQA_KFF_project.bib
+---
+
+Title: Why Westerners Are Dissatisfied: A Cross-Sectional Study Identifying State-Level Factors Associated with Variation in Private Health Insurance Satisfaction
+
+Running Title: State-Level Factors in Insurance Satisfaction
+
+Authors: 
+
+Megan McLeod, BA* (1) and Jeffrey A. Berinstein, MD, MSc* (1, 2)
+Calen A. Steiner, MD, MS (1)
+Kelly Cushing MD, MS (1)
+Shirley A. Cohen Mekelburg MD, MS (1, 2)
+Peter D.R. Higgins, MD, PhD, MSc (1)
+
+1.	University of Michigan, Department of Internal Medicine, Division of Gastroenterology and Hepatology, Ann Arbor, MI, USA
+2.	University of Michigan, Institute for Healthcare Policy and Innovation, Ann Arbor, MI, USA
+
+* These authors contributed equally to this work.
+
+
+Grant Support: MM is supported by TL1TR002242. JAB is supported by T32 DK062708, PDRH is supported by R01 DK109302, R01 DK118154,  and T32 DK062708.
+
+
+Corresponding Author:
+Megan McLeod, BA 
+mrmcleod@med.umich.edu
+1500 E. Medical Center Drive, Ann Arbor, MI 48109
+Phone: (734) 936-8596
+Fax: (734) 936-7392
+
+Author Contributions: 
+Study concept and design: All authors
+Acquisition: Higgins, Berinstein, McLeod 
+Analysis or interpretation of data: All authors
+Drafting of the manuscript: Higgins, Berinstein, McLeod
+Figures: Higgins, Berinstein, McLeod 
+Critical revision of the manuscript: All authors
+Final approval: All authors
+
+Disclosures: 
+
+All authors report no disclosures relevant to this manuscript.
+
+Abbreviations:
+Affordable Care Act (ACA); Analysis of Variance (ANOVA); Healthcare Effectiveness Data and Information Set (HEDIS); Kaiser Family Foundation (KFF); Medical
+Expenditure Panel Survey (MEPS); National Committee for Quality Assurance’s (NCQA); Primary Medical Doctor (PMD); United Health Foundation (UHF); Variance inflation factor (VIF); 
+
+
+Length:
+Abstract: 250
+Article: 2981
+References: 62
+Tables: 2
+Figures: 2
+Supplemental Material:  6 Tables. 0 Figures.
+
+----------------------
+Abstract: 
+Importance: Large regional variations in consumer satisfaction with private health insurance plans have been observed, but the factors driving this variation are unknown.
+Objective: 	To identify explanatory state-level and insurance family-level predictors of satsifaction with private health insurance.
+Design: 	Cross-sectional study examining regional and state variations in consumer health insurance plan satisfaction using National Committee for Quality Assurance data from 2015 to 2018, state-level health data and parent insurance family.
+Setting: 	US Population
+Participants: Privately insured individuals.
+Exposure: 	One of 2176 private health insurance plans.
+Main Outcome: Consumer satisfaction with the health insurance plan on a 0-5 scale.
+RESULTS: 	Consumer satisfaction with health insurance was consistently lowest in the West (p<0.0001). Lower private health insurance plan satisfaction was associated with the percentage of the population without a place of usual medical care, the percentage of the state population that is Hispanic, and the percentage of the population reporting any mental illness. Factors associated with increasing insurance satisfaction included higher healthcare spending per capita, a higher number of for-profit beds per capita, and an increased cancer death rate. Increased consumer satisfaction was associated with the Kaiser and Anthem insurance plan families.
+Conclusions and Relevance: 	State and insurer family factors are predictive of private health insurance plan satisfaction. Potentially modifiable factors include access to primary care, healthcare spending per capita, and numbers of for-profit hospital beds. This information will help consumers hold insurance providers accountable to provide higher quality and more desirable coverage and provide actionable items to improve health insurance satisfaction.
+----------------
+
+Introduction: 
+Insurance plan selection is a complex decision with many important health and financial implications.1 Consumers’ ability to make informed decisions about health insurance plans is limited.2–8 Gaining insight into the factors contributing to consumer health insurance plan satisfaction will help consumers hold states and insurers accountable and identify actionable items to improve health insurance coverage.
+The National Committee for Quality Assurance (NCQA) is an independent nonprofit agency that collects information about non-subsidized health insurance plans and provides both certifications and ratings of consumer satisfaction, prevention, and treatment.9 A preliminary analysis of NCQA health insurance satisfaction among private insurance enrollees revealed that there is significant regional and state-level variation in consumer satisfaction (Figure 1). Each state has its own insurance regulations and distinct state-level insurance plans, suggesting that there may be modifiable state-level factors driving consumer satisfaction. 
+This study aimed to identify the regional and state-level factors associated with health insurance satisfaction among private health insurance plan enrollees in the United States. Understanding this variation is the first step toward better meeting the needs of insured individuals.
+---------------
+
+
+## Setup
+```{r setup, include = FALSE}
+# this is the setup chunk
+knitr::opts_chunk$set(echo = TRUE, collapse = TRUE, comment = "#>")
+
+#load libraries
+library(xml2)
+library(rvest)
+library(lubridate)
+library(dplyr)
+library(stringr)
+library(ggplot2)
+library(magrittr)
+library(corrr)
+library(purrr)
+library(choroplethr)
+library(choroplethrMaps)
+library(tidycensus)
+library(tigris)
+library(tidyverse)
+library(sf)
+library(ggalt)
+library(scales)
+library(readxl)
+library(car)
+library(ggpubr)
+library(rmarkdown)
+library(ezknitr)
+library(data.table)
+library(rvest)
+library(citr)
+library(tools)
+library(janitor)
+library(devtools)
+devtools::install_github("thomasp85/patchwork")
+library(patchwork)
+library(lme4)
+library(leaps)
+library(broom)
+library(corrplot)
+library(caret)
+library(officer)
+#library(flextable)
+library(stargazer)
+library(MuMIn)
+library(arsenal)
+#library(gridExtra)
+library(cowplot)
+library(knitr)
+library(visdat)
+library(readr)
+
+```
+
+
+  
+
+```{r dataframes and lists, include=FALSE}
+# 01_ setup-------------------------------------------------------
+
+#First create raw_data and processed_data folders on desktop, set desktop to working directory, and download specified files into each folder as prompted below
+
+# download state dataframe - Raw_data folder, state_df.csv
+state_df <- read.csv('raw_data/state_df.csv') %>%
+  clean_names()
+state_abbs <- state_df %>% pull(abbreviation)
+state_names <- state_df %>% pull(state)
+
+#create links to NCQA website
+years <- c(2015, 2016, 2017, 2018)
+links <- paste("http://healthinsuranceratings.ncqa.org",
+               years, "search", sep ="/")
+
+# create plantypelist, instypes vectors
+plantypelist <- c("Aetna", "Humana", "Blue", "United", "Cigna", "Kaiser", "Compass Rose",
+                  "Coventry", "Connecticut General", "Group Health", "Molina", "Medica ", "Anthem",
+                  "Health Net", "Care Improvement", "HealthSpring", "Health Alliance", "WellCare",
+                  "Special Agents", "Pacific Source")
+
+instype= c("Commercial", "Medicare", "Medicaid")
+```
+
+#Data
+
+
+```{r NCQA data, include=FALSE}
+# read in NCQA data in from csv file - see raw-data folder for files with names below
+fulltable_2015 <- read.csv('raw_data/p_InsPlans2015.csv') %>%
+  clean_names()
+fulltable_2016 <- read.csv('raw_data/p_InsPlans2016.csv') %>%
+  clean_names()
+fulltable_2017 <- read.csv('raw_data/p_InsPlans2017.csv') %>%
+  clean_names()
+fulltable_2018 <- read.csv('raw_data/p_InsPlans2018.csv') %>%
+  clean_names()
+
+## Clean dataframes
+#run loop to assign plantypes
+# check for text in plantype, if found, assign category to plantype variable
+for (i in 1:length(plantypelist)) {
+  fulltable_2015$plantype[grepl(plantypelist[i], fulltable_2015$plan)]  <- plantypelist[i]
+}
+
+#clean 2015 data table
+#clean up plan names - remove extra lines
+fulltable_2015$plan <- gsub("\\n", " ", fulltable_2015$plan)
+fulltable_2015$plan <- gsub("\\s+", " ", fulltable_2015$plan)
+
+# add one labeled as BCBS to Blues
+fulltable_2015$plantype[(grepl("BCBS", fulltable_2015$plan))] <- "Blue"
+#replace NA in plantype as "Other"
+fulltable_2015$plantype[is.na(fulltable_2015$plantype)] <-"Other"
+
+#2015 data has 26 garbage ratings, remove these
+fulltable_2015 %>% filter(rating >5) %>% summarize(total=n())
+fulltable_2015 <- fulltable_2015 %>% filter(rating <6) 
+
+#how many have overall rating of NA - 2015 data has 370 of 1377, 398 out of 1617 plans
+fulltable_2015 %>% summarize(num_na = sum(is.na(rating)), total=n())
+#now remove all with rating of NA 
+fulltable_2015 %>% filter(!is.na(rating)) %>% summarize(total=n())
+fulltable_2015 <- fulltable_2015 %>% filter(!is.na(rating)) 
+
+# a few (7) have NA rating for consumersat - remove (1191 observations)
+fulltable_2015 %>% filter(is.na(consumersat)) %>% summarize(total=n())
+fulltable_2015 <- fulltable_2015 %>% filter(!is.na(consumersat)) 
+
+#check counts (18 plantypes)
+fulltable_2015 %>% group_by(plantype)  %>%  summarize(count =n()) %>% select(plantype, count) %>% arrange(desc(count)) %>% print(n=32)
+#check NA plans - none remain.
+fulltable_2015 %>% filter(is.na(plantype)) %>% select(plan)  %>% head()
+
+#calculate overall mean rating (3.44 in 2015)
+fulltable_2015 %>% summarize(total=n(), mean_rating=mean(rating))
+
+#save cleaned dataframe as csv "processed_data/10m_InsPlans2015.csv"
+write.csv(fulltable_2015, "processed_data/10m_InsPlans2015.csv")
+
+######clean 2016 data table
+#run loop to assign plantypes
+# check for text in plantype, if found, assign category to plantype variable
+for (i in 1:length(plantypelist)) {
+  fulltable_2016$plantype[grepl(plantypelist[i], fulltable_2016$plan)]  <- plantypelist[i]
+}
+
+#clean up plan names - remove extra lines
+fulltable_2016$plan <- gsub("\\n", " ", fulltable_2016$plan)
+fulltable_2016$plan <- gsub("\\s+", " ", fulltable_2016$plan)
+
+# add one labeled as BCBS to Blues
+fulltable_2016$plantype[(grepl("BCBS", fulltable_2016$plan))] <- "Blue"
+#replace NA in plantype as "Other"
+fulltable_2016$plantype[is.na(fulltable_2016$plantype)] <-"Other"
+
+#2016 data has 21 garbage ratings, remove these
+fulltable_2016 %>% filter(rating >5) %>% summarize(total=n())
+fulltable_2016 <- fulltable_2016 %>% filter(rating <6) 
+
+#how many have overall rating of NA - 2016 data has 398 out of 1617 plans
+fulltable_2016 %>% summarize(num_na = sum(is.na(rating)), total=n())
+#now remove all with rating of NA 
+fulltable_2016 %>% filter(!is.na(rating)) %>% summarize(total=n())
+fulltable_2016 <- fulltable_2016 %>% filter(!is.na(rating)) 
+
+# a few (7) have NA rating for consumersat - remove (1191 observations)
+fulltable_2016 %>% filter(is.na(consumersat)) %>% summarize(total=n())
+fulltable_2016 <- fulltable_2016 %>% filter(!is.na(consumersat)) 
+
+#check counts (18 plantypes)
+fulltable_2016 %>% group_by(plantype)  %>%  summarize(count =n()) %>% select(plantype, count) %>% arrange(desc(count)) %>% print(n=32)
+#check NA plans - none remain.
+fulltable_2016 %>% filter(is.na(plantype)) %>% select(plan)  %>% head()
+
+#calculate overall mean rating (3.46 in 2016)
+fulltable_2016 %>% summarize(total=n(), mean_rating=mean(rating))
+
+#save cleaned dataframe as csv "processed_data/10m_InsPlans2016.csv"
+write.csv(fulltable_2016, "processed_data/10m_InsPlans2016.csv")
+
+######clean 2017 data table
+#run loop to assign plantypes
+# check for text in plantype, if found, assign category to plantype variable
+for (i in 1:length(plantypelist)) {
+  fulltable_2017$plantype[grepl(plantypelist[i], fulltable_2017$plan)]  <- plantypelist[i]
+}
+
+#clean up plan names - remove extra lines
+fulltable_2017$plan <- gsub("\\n", " ", fulltable_2017$plan)
+fulltable_2017$plan <- gsub("\\s+", " ", fulltable_2017$plan)
+
+# add one labeled as BCBS to Blues
+fulltable_2017$plantype[(grepl("BCBS", fulltable_2017$plan))] <- "Blue"
+#replace NA in plantype as "Other"
+fulltable_2017$plantype[is.na(fulltable_2017$plantype)] <-"Other"
+
+#2017 data has 22 garbage ratings, remove these
+fulltable_2017 %>% filter(rating >5) %>% summarize(total=n())
+fulltable_2017 <- fulltable_2017 %>% filter(rating <6) 
+
+#how many have overall rating of NA - 2017 data has 0 out of 1224 plans
+fulltable_2017 %>% summarize(num_na = sum(is.na(rating)), total=n())
+#now remove all with rating of NA 
+fulltable_2017 %>% filter(!is.na(rating)) %>% summarize(total=n())
+fulltable_2017 <- fulltable_2017 %>% filter(!is.na(rating)) 
+
+# a few (40) have NA rating for consumersat - remove (1184 observations)
+fulltable_2017 %>% filter(is.na(consumersat)) %>% summarize(total=n())
+fulltable_2017 <- fulltable_2017 %>% filter(!is.na(consumersat)) 
+
+#check counts (18 plantypes)
+fulltable_2017 %>% group_by(plantype)  %>%  summarize(count =n()) %>% select(plantype, count) %>% arrange(desc(count)) %>% print(n=32)
+#check NA plans - none remain.
+fulltable_2017 %>% filter(is.na(plantype)) %>% select(plan)  %>% head()
+
+#calculate overall mean rating (3.51 in 2017)
+fulltable_2017 %>% summarize(total=n(), mean_rating=mean(rating))
+
+#save cleaned dataframe as csv "processed_data/10m_InsPlans2017.csv"
+write.csv(fulltable_2017, "processed_data/10m_InsPlans2017.csv")
+
+######clean 2018 data table
+#run loop to assign plantypes
+# check for text in plantype, if found, assign category to plantype variable
+for (i in 1:length(plantypelist)) {
+  fulltable_2018$plantype[grepl(plantypelist[i], fulltable_2018$plan)]  <- plantypelist[i]
+}
+
+#clean up plan names - remove extra lines
+fulltable_2018$plan <- gsub("\\n", " ", fulltable_2018$plan)
+fulltable_2018$plan <- gsub("\\s+", " ", fulltable_2018$plan)
+
+# add one labeled as BCBS to Blues
+fulltable_2018$plantype[(grepl("BCBS", fulltable_2018$plan))] <- "Blue"
+#replace NA in plantype as "Other"
+fulltable_2018$plantype[is.na(fulltable_2018$plantype)] <-"Other"
+
+#2018 data has 28 garbage ratings, remove these
+fulltable_2018 %>% filter(rating >5) %>% summarize(total=n())
+fulltable_2018 <- fulltable_2018 %>% filter(rating <6) 
+
+#how many have overall rating of NA 
+fulltable_2018 %>% summarize(num_na = sum(is.na(rating)), total=n())
+#now remove all with rating of NA 
+fulltable_2018 %>% filter(!is.na(rating)) %>% summarize(total=n())
+fulltable_2018 <- fulltable_2018 %>% filter(!is.na(rating)) 
+
+# a few (14) have NA rating for consumersat - remove (1273 observations)
+fulltable_2018 %>% filter(is.na(consumersat)) %>% summarize(total=n())
+fulltable_2018 <- fulltable_2018 %>% filter(!is.na(consumersat)) 
+
+#check counts (2018 has 17 plantypes)
+fulltable_2018 %>% group_by(plantype)  %>%  summarize(count =n()) %>% select(plantype, count) %>% arrange(desc(count)) %>% print(n=32)
+
+#check NA plans - none remain.
+fulltable_2018 %>% filter(is.na(plantype)) %>% select(plan)  %>% head()
+
+#calculate overall mean rating (3.46 in 2018)
+fulltable_2018 %>% summarize(total=n(), mean_rating=mean(rating))
+
+#save cleaned dataframe as csv "processed_data/10m_InsPlans2018.csv"
+write.csv(fulltable_2018, "processed_data/10m_InsPlans2018.csv")
+```
+
+ 
+ 
+```{r data merging, include=FALSE}
+#filter for consumer satisfaction among commercial plans for 2016
+#Import 10m_InsPlans2016.csv
+InsPlans2016<- fulltable_2016 %>%
+  clean_names()
+
+#Rename State to abbreviations for join
+names(InsPlans2016)[names(InsPlans2016)=="state"] <- "abbreviation"
+
+#Left Join states and NCQA data by state
+InsPlans2016_01<- merge(x = InsPlans2016, y = state_df, by = "abbreviation", all.x = TRUE)
+
+#summarize Overall NCQA Rating by state - Commercial
+rated_2016_commercial <-InsPlans2016_01 %>%
+  filter(abbreviation!="DC") %>%
+  dplyr::group_by(state, abbreviation) %>%
+  filter(instype == "Commercial") %>%
+  dplyr::summarize(consumer_satisfaction_rating =mean(consumersat, na.rm=TRUE)) %>%
+  arrange(desc(consumer_satisfaction_rating))
+
+rated_2016_commercial$state <- as.factor(toTitleCase(as.character(rated_2016_commercial$state)))
+
+#Download KFF from mbox and merge dataframes from KFF (obtained through C++) and NCQA
+##Download 03_kff_data_01_10_2019.csv and store in processed_data folder
+kff_complete <- read.csv("processed_data/03_kff_data_01_10_2019.csv")
+sum(is.na(kff_complete)) #159 missing
+
+#filter for non-commercial plans, 
+InsPlans2016_01 <- InsPlans2016_01 %>%
+  filter(instype == "Commercial") %>% 
+  filter(abbreviation!="DC")
+
+#set up left join of all NCQA data with KFF factors
+ncqa_kff <- left_join(InsPlans2016_01, kff_complete, by = "state")
+sum(is.na(ncqa_kff)) #1642 na
+vis_dat(ncqa_kff)
+
+#add rxopioid deaths, hospbeds and noplacemedcare, both of which were important in the original code, find these dataframes in raw_data folder
+rx_opioid_deaths_2016 <- read.csv('raw_data/rx_opioid_deaths_2016.csv')
+names(rx_opioid_deaths_2016) <- c("state", "rx_opioid_deaths_16")
+no_place_medcare_2014 <- read.csv('raw_data/noplacemedcare_2014.csv')
+names(no_place_medcare_2014) <- c("state", "pct_no_place_care_2014")
+#multiple by 100^
+no_place_medcare_2014$pct_no_place_care_2014 <- no_place_medcare_2014$pct_no_place_care_2014*100
+#merge with ncqa_kff
+ncqa_kff <- merge(x = ncqa_kff, y = rx_opioid_deaths_2016, by = "state", all.x = TRUE)
+ncqa_kff <- merge(x = ncqa_kff, y = no_place_medcare_2014, by = "state", all.x = TRUE)
+
+#write to csv
+write_csv(ncqa_kff, "processed_data/ncqa_kff_final.csv")
+
+```
+
+
+
+```{r table 1, echo=FALSE, results = "asis", warning=FALSE, message=FALSE}
+#Compare consumer satisfaction across regions
+#download file containing states with regions and divisions, this file is in raw_data folder
+reg_div <- read.csv('raw_data/regdiv.csv')
+reg_div <- reg_div %>% 
+  filter(state != "DC")
+
+#calculate mean NCQA Consumer Satisfaction ratings for each year, by each state
+fulltable_2015 <- left_join(fulltable_2015, reg_div, BY= "state")
+fulltable_2015 <- select(fulltable_2015,-`State.full`)
+fulltable_2015_filt <- fulltable_2015 %>% filter(instype == "Commercial")
+avg_state_consumsat_rating15 <- fulltable_2015_filt %>% group_by(state) %>%  summarize(total=n(), mean_consumersat = mean(consumersat))
+fulltable_2015_filt <- left_join(fulltable_2015_filt, avg_state_consumsat_rating15, BY= "state")
+fulltable_2015_filt$year <- 2015
+
+fulltable_2016 <- left_join(fulltable_2016, reg_div, BY= "state")
+fulltable_2016 <- select(fulltable_2016,-`State.full`)
+fulltable_2016_filt <- fulltable_2016 %>% filter(instype == "Commercial")
+avg_state_consumsat_rating16 <- fulltable_2016_filt %>% group_by(state)  %>% summarize(total=n(), mean_consumersat = mean(consumersat))
+fulltable_2016_filt <- left_join(fulltable_2016_filt, avg_state_consumsat_rating16, BY= "state")
+fulltable_2016_filt$year <- 2016
+
+fulltable_2017 <- left_join(fulltable_2017, reg_div, BY= "state")
+fulltable_2017 <- select(fulltable_2017,-`State.full`)
+fulltable_2017_filt <- fulltable_2017 %>% filter(instype == "Commercial")
+avg_state_consumsat_rating17 <- fulltable_2017_filt %>% group_by(state)  %>% summarize(total=n(), mean_consumersat=mean(consumersat))
+fulltable_2017_filt <- left_join(fulltable_2017_filt, avg_state_consumsat_rating17, BY= "state")
+fulltable_2017_filt$year <- 2017
+
+fulltable_2018 <- left_join(fulltable_2018, reg_div, BY= "state")
+fulltable_2018 <- select(fulltable_2018,-`State.full`)
+fulltable_2018_filt <- fulltable_2018 %>% filter(instype == "Commercial")
+avg_state_consumsat_rating18 <- fulltable_2018_filt %>% group_by(state)  %>% summarize(total=n(), mean_consumersat=mean(consumersat))
+fulltable_2018_filt <- left_join(fulltable_2018_filt, avg_state_consumsat_rating18, BY= "state")
+fulltable_2018_filt$year <- 2018
+
+allyears1 <- rbind(fulltable_2015_filt, fulltable_2016_filt, fulltable_2017_filt, fulltable_2018_filt)
+
+#make tables of mean rating by region for each year, compare with ANOVA 
+table_all <- tableby(formula = region ~ mean_consumersat, data=allyears1, strata = year,  digits=4, digits.p=4, digits.pct=4)
+summary(table_all, text = TRUE)
+
+
+lm_regions <- lm(fulltable_2016_filt$mean_consumersat ~ fulltable_2016_filt$region, data=fulltable_2016_filt)
+summary(lm_regions)
+confint(lm_regions)
+
+#Keep the table in the supplemental materials, map in the 
+
+
+```
+#Choropleths
+
+```{r choropleths, echo=FALSE, results = "asis", warning=FALSE, message=FALSE}
+#Import cleaned NCQA data from 2015, read this file in from your saved file, or from file in processed_data folder
+InsPlans2015<- read.csv('processed_data/10m_InsPlans2015.csv') %>%
+  clean_names()
+
+#Rename State to abbreviations for join
+names(InsPlans2015)[names(InsPlans2015)=="state"] <- "abbreviation"
+
+#Left Join states and NCQA data by state
+InsPlans2015 <- merge(x = InsPlans2015, y = state_df, by = "abbreviation", all.x = TRUE)
+
+#summarize NCQA COnsumer Satisfaction Rating by state - Commercial
+consumersat_2015 <-InsPlans2015 %>%
+  filter(abbreviation!="DC") %>%
+  dplyr::group_by(state, abbreviation) %>%
+  filter(instype == "Commercial") %>%
+  dplyr::summarize(consumer_satisfaction_rating =mean(consumersat, na.rm=TRUE)) %>%
+  arrange(desc(consumer_satisfaction_rating))
+
+#Write final CSV
+write.csv(consumersat_2015, "processed_data/Mean NCQA consumer satisfaction by state 2015.csv")
+
+####2016 Data ###
+#Import cleaned NCQA data from 2016; read this file in from your saved file, or from file in processed_data folder
+InsPlans2016<- read.csv('processed_data/10m_InsPlans2016.csv') %>%
+  clean_names()
+
+#Rename State to abbreviations for join
+names(InsPlans2016)[names(InsPlans2016)=="state"] <- "abbreviation"
+
+#Left Join states and NCQA data by state
+InsPlans2016 <- merge(x = InsPlans2016, y = state_df, by = "abbreviation", all.x = TRUE)
+
+#summarize NCQA Consumer satisfaction Rating by state for Commercial plans
+consumersat_2016 <-InsPlans2016 %>%
+  filter(abbreviation!="DC") %>%
+  dplyr::group_by(state, abbreviation) %>%
+  filter(instype == "Commercial") %>%
+  dplyr::summarize(consumer_satisfaction_rating =mean(consumersat, na.rm=TRUE)) %>%
+  arrange(desc(consumer_satisfaction_rating))
+
+#Write final CSV
+write.csv(consumersat_2016, "processed_data/Mean NCQA consumer satisfaction by state 2016.csv")
+
+###2017 Data
+#Import Cleaned NCQA data from 2017; read this file in from your saved file, or from file in processed_data folder
+InsPlans2017<- read.csv('processed_data/10m_InsPlans2017.csv') %>%
+  clean_names()
+
+#Rename State to abbreviations for join
+names(InsPlans2017)[names(InsPlans2017)=="state"] <- "abbreviation"
+
+#Left Join states and NCQA data by state
+InsPlans2017 <- merge(x = InsPlans2017, y = state_df, by = "abbreviation", all.x = TRUE)
+
+#summarize NCQA consumer satisfaction Rating by state
+consumersat_2017 <-InsPlans2017 %>%
+  filter(abbreviation!="DC") %>%
+  dplyr::group_by(state, abbreviation) %>%
+  filter(instype == "Commercial") %>%
+  dplyr::summarize(consumer_satisfaction_rating=mean(consumersat, na.rm=TRUE)) %>%
+  arrange(desc(consumer_satisfaction_rating))
+
+#Write final CSV
+write.csv(consumersat_2017, "processed_data/Mean NCQA consumer satisfaction by state 2017.csv")
+
+####2018 Data ###
+#Import cleaned NCQA data for 2018; read this file in from your saved file, or from file in processed_data folder
+InsPlans2018<- read.csv('processed_data/10m_InsPlans2018.csv') %>%
+  clean_names()
+
+#Rename State to abbreviations for join
+names(InsPlans2018)[names(InsPlans2018)=="state"] <- "abbreviation"
+
+#Left Join states and NCQA data by state
+InsPlans2018<-  merge(x = InsPlans2018, y = state_df, by = "abbreviation", all.x = TRUE)
+
+#summarize Overall NCQA Rating by state - Commercial
+consumersat_2018 <-InsPlans2018 %>%
+  filter(abbreviation!="DC") %>%
+  dplyr::group_by(state, abbreviation) %>%
+  filter(instype == "Commercial") %>%
+  dplyr::summarize(consumer_satisfaction_rating=mean(consumersat, na.rm=TRUE)) %>%
+  arrange(desc(consumer_satisfaction_rating))
+
+#Write final CSV
+write.csv(consumersat_2018, "processed_data/Mean NCQA consumer satisfaction by state 2018.csv")
+
+#Prepare to map
+api_key <- 'ee05e09e76f1142994ead1d70d4d8556b03e0876'
+
+census_api_key(api_key)
+Sys.getenv("CENSUS_API_KEY")
+options(tigris_use_cache = TRUE)
+
+##Repeat with get_acs
+geometry <- get_acs(geography = "state",
+                         variables = c(total_households ="B22001_001"),
+                         geometry = TRUE)
+
+
+geometry1<- geometry %>%
+filter(GEOID != "11" & GEOID !="72") %>%
+  select(GEOID, NAME, moe, geometry)
+
+names(geometry1)<- c("geomid", "state","moe", "geometry")
+
+#Add NCQA overal score 2015 of comercial insurance type
+consumersat_2015 %>%
+  select(state, consumer_satisfaction_rating)
+
+consumersat_2015$state<- as.character(consumersat_2015$state)
+
+#Function to capatalize states
+simpleCap <- function(x) {
+  s <- strsplit(x, " ")[[1]]
+  paste(toupper(substring(s, 1,1)), substring(s, 2),
+        sep="", collapse=" ")
+}
+
+consumersat_2015$state<- sapply(consumersat_2015$state, simpleCap)
+
+#Left join with acs geometry
+consumersat_2015 <- merge(x = geometry1, y = consumersat_2015, by = "state", all.x = TRUE)
+
+##Map with geom_sf
+map_2015 <-consumersat_2015 %>%
+ggplot(aes(fill = consumer_satisfaction_rating, color=consumer_satisfaction_rating)) +
+  geom_sf() +
+  scale_fill_viridis_c() + #fill scale
+  scale_color_viridis_c(guide=FALSE) + #only one legend
+  #colors lines between states
+  theme_minimal(base_size = 10) + #base font size
+  coord_sf(xlim = c(-60, -125), ylim = c(20, 50), datum = NA) +
+  #sets limits, turns off lat/long grid
+  labs(title = "2015",
+       fill = 'Rating')
+
+#2016 
+#Clean NCQA table
+consumersat_2016$state<- as.character(consumersat_2016$state)
+consumersat_2016$state<- sapply(consumersat_2016$state, simpleCap)
+consumersat_2016 <- merge(x = geometry1, y = consumersat_2016, by = "state", all.x = TRUE)
+
+##Map with geom_sf
+map_2016 <- consumersat_2016 %>%
+  ggplot(aes(fill = consumer_satisfaction_rating, color=consumer_satisfaction_rating)) +
+  geom_sf() +
+  scale_fill_viridis_c() + #fill scale
+  scale_color_viridis_c(guide=FALSE) + #only one legend
+  #colors lines between states
+  theme_minimal(base_size = 10) + #base font size
+  coord_sf(xlim = c(-60, -125), ylim = c(20, 50), datum = NA) +
+  #sets limits, turns off lat/long grid
+  labs(title = "2016",
+       fill = 'Rating')
+
+#2017 Map
+
+#Clean NCQA table
+consumersat_2017$state<- as.character(consumersat_2017$state)
+consumersat_2017$state<- sapply(consumersat_2017$state, simpleCap)
+consumersat_2017<- merge(x = geometry1, y = consumersat_2017, by = "state", all.x = TRUE)
+
+##Map with geom_sf
+map_2017 <- consumersat_2017 %>%
+  ggplot(aes(fill = consumer_satisfaction_rating, color=consumer_satisfaction_rating)) +
+  geom_sf() +
+  scale_fill_viridis_c() + #fill scale
+  scale_color_viridis_c(guide=FALSE) + #only one legend
+  #colors lines between states
+  theme_minimal(base_size = 10) + #base font size
+  coord_sf(xlim = c(-60, -125), ylim = c(20, 50), datum = NA) +
+  #sets limits, turns off lat/long grid
+  labs(title = "2017",
+       fill = 'Rating')
+
+#2018 Map
+
+#Clean NCQA table
+consumersat_2018$state<- as.character(consumersat_2018$state)
+consumersat_2018$state<- sapply(consumersat_2018$state, simpleCap)
+consumersat_2018<- merge(x = geometry1, y = consumersat_2018, by = "state", all.x = TRUE)
+
+
+##Map with geom_sf
+map_2018 <- consumersat_2018 %>%
+  ggplot(aes(fill = consumer_satisfaction_rating, color=consumer_satisfaction_rating)) +
+  geom_sf() +
+  scale_fill_viridis_c() + #fill scale
+  scale_color_viridis_c(guide=FALSE) + #only one legend
+  #colors lines between states
+  theme_minimal(base_size = 10) + #base font size
+  coord_sf(xlim = c(-60, -125), ylim = c(20, 50), datum = NA) +
+  #sets limits, turns off lat/long grid
+  labs(title = "2018",
+       fill = 'Rating')
+
+#Put them together
+pubmap1 <- ggarrange(map_2015, map_2016, map_2017, map_2018, ncol=2, nrow=2, common.legend = TRUE, legend="bottom")
+pubmap1
+
+
+```
+
+```{r correlations using corrplot, echo=FALSE, warning= FALSE, message = FALSE}
+#correlations using corrplot and corrr network
+library(corrr)
+library(corrplot)
+
+#remove v1, rating, year, pct_native_2016", "pct_pacific_2016", "pct_two_or_more_races_2016", non-numeric     
+#select predictors only
+corrset<-ncqa_kff[-c(1:7, 10:15, 28:30, 56:58)]
+
+#Count Nas
+sum(is.na(corrset)) #292 Nas
+#replace NAs with 0
+corrset[is.na(corrset)] <- 0
+
+#Divide into 23 DFs
+
+corrsetA<-corrset[c(1:27)]
+corrsetB<-corrset[c(1,28:55)]
+corrsetC<-corrset[c(1, 56:85)]
+
+#CorrsetA
+mA <- cor(corrsetA)
+corrplot(mA, type= "upper", order = "hclust")
+
+
+corrsetA %>% correlate() %>%
+ network_plot(min_cor = .25,
+               colors=c("indianred2",
+                        "white", "skyblue1"))
+
+
+mB <- cor(corrsetB)
+corrplot(mB, type= "upper", order = "hclust")
+
+
+corrsetB %>% correlate() %>%
+  network_plot(min_cor = .25,
+               colors=c("indianred2",
+                        "white", "skyblue1"))
+
+
+mC <- cor(corrsetC)
+corrplot(mC, type= "upper", order = "hclust")
+
+
+corrsetC %>% correlate() %>%
+  network_plot(min_cor = .25,
+               colors=c("indianred2",
+                        "white", "skyblue1"))
+
+
+```
+
+
+```{r bivariable table- supplement 5, echo=FALSE}
+
+full_df <-  ncqa_kff  #1
+
+corrset %>% 
+  map(~lm(full_df$consumersat~.x, data=full_df)) %>% 
+  map(tidy) -> #4
+  list
+
+#Table with coefficients and p value
+pred <- names(list) #5
+
+list %>% 
+  bind_rows() %>% 
+  filter(term != "(Intercept)") %>% 
+  mutate(predictor = pred) %>% #7
+  dplyr::select(predictor, estimate, p.value) %>% 
+  arrange(p.value) -> #8
+  univariate_table
+
+#Supplemental table 5 - complete list of state factors
+kable(univariate_table)
+
+```
+
+```{r univariate modeling - confidence intervals}
+uni1 <- lm(consumersat ~ pct_no_place_care_2014, data=ncqa_kff)
+summary(uni1)
+confint(uni1)
+
+uni2 <- lm(consumersat ~ pct_hispanic_2016, data=ncqa_kff)
+summary(uni2)
+confint(uni2)
+
+uni4 <- lm(consumersat ~ hosp_rate_nonprofit_hosp_2016, data=ncqa_kff)
+summary(uni4)
+confint(uni4)
+
+uni5 <- lm(consumersat ~ ncqa_kff$`pct_pop_age0.18_2016`, data=ncqa_kff)
+summary(uni5)
+confint(uni5)
+
+uni6 <- lm(consumersat ~ ncqa_kff$cancer_death_rate_2016, data=ncqa_kff)
+summary(uni6)
+confint(uni6)
+
+uni7 <- lm(consumersat ~ ncqa_kff$`pct_pop_age55.64_2016`, data=ncqa_kff)
+summary(uni7)
+confint(uni7)
+
+uni8 <- lm(consumersat ~ ncqa_kff$hosp_rate_total_2016, data=ncqa_kff)
+summary(uni8)
+confint(uni8)
+
+uni9 <- lm(consumersat ~ ncqa_kff$pct_pop_age65_2016, data=ncqa_kff)
+summary(uni9)
+confint(uni9)
+
+uni10 <- lm(consumersat ~ ncqa_kff$num_non_profit_beds_2016, data=ncqa_kff)
+summary(uni10)
+confint(uni10)
+
+uni11 <- lm(consumersat ~ ncqa_kff$pct_change_uninsured_2013_2016, data=ncqa_kff)
+summary(uni11)
+confint(uni11)
+
+uni12 <- lm(consumersat ~ ncqa_kff$pct_male_2016, data=ncqa_kff)
+summary(uni12)
+confint(uni12)
+
+```
+
+```{r supplemental tables 2 and 3, echo=FALSE}
+#try to model just for type and state, if state is significant, then this is good justification for looking at state-level factors
+#Adjusted R2 is 0.3495, mean consumersat predicted to be 2.73 (compare to 3.46 as calculated above)
+library(lme4)
+fit1 <- lm(consumersat ~ plantype + state, data=ncqa_kff)
+#Anthem, Kaiser, Blue, and other incrase satisfaction, humana decreases it
+#satisfaciton higher in LA, MS, NH, TN do better, NV does worse
+#map this after controlling for plantype? - map the coefficients?
+summary(fit1)
+confstate_plan <- confint(fit1)
+#write.csv(confstate_plan, file="stateplanconfidence.csv")
+#supplemental table 2
+fit2<- lm(consumersat ~ state, data=ncqa_kff)
+summary(fit2)
+summfit2<- tidy(fit2)
+write.csv(summfit2, "summaryfitstate.csv")
+#confidence intervals for supplemental table 2
+stateconfint <- confint(fit2)
+stateconfint
+#write.csv(stateconfint, file = "stateconfidence.csv")
+#supplemental table 3
+fit_plantype <- lm(consumersat ~ plantype, data=ncqa_kff)
+summary(fit_plantype)
+summfit_plantype<- tidy(fit_plantype)
+#write.csv(summfit_plantype, "summaryfitplantype.csv")
+planconfint <- confint(fit_plantype)
+#write.csv(planconfint, file = "planconfidence.csv")
+
+#supplemental table 4
+ncqa_kff %>% 
+  map(~lm(consumersat ~ plantype + state, data=ncqa_kff)) %>% 
+  map(tidy) -> #4
+  list
+
+kable(list)
+model4 <- lm(consumersat ~ plantype + state, data=ncqa_kff)
+summary(model4)
+confint(model4)
+
+```
+
+
+```{r model2, echo=FALSE}
+#try a previous model that worked well - it still works well
+fit2 <- lm(consumersat ~ pct_unemployed_2016  + pct_smoke_2016  
+          + opioid_od_death_rate_2016   
+          + pct_not_hav_pcp_2016 + plantype, data=ncqa_kff)
+summary(fit2)
+#AdjR2 0.2145 with this before -->0.1783 now, 0.3495 with state
+
+#try another model from before
+#first, create doc_dens 
+ncqa_kff$doc_dens <- ncqa_kff$no_total_md_2018/ncqa_kff$land_area
+#then model adj R2= 0.157
+fit3 <- lm(consumersat ~ doc_dens + pct_smoke_2016 + num_total_beds_2016 + pop_density + firearm_death_rate_2016 + pct_disability_2016 + pct_serious_mental_illness_2016, data=ncqa_kff)
+summary(fit3)
+
+#run leaps
+library(leaps)
+      leaps<-regsubsets(consumersat ~  pct_unemployed_2016  + pct_smoke_2016  
+          + opioid_od_death_rate_2016 + pct_not_hav_pcp_2016 + plantype + num_total_beds_2016 + pop_density + firearm_death_rate_2016 + pct_disability_2016 + pct_serious_mental_illness_2016 +num_for_profit_beds_2016 + no_pcp_per_pop +quality_value_2016 + no_insur_provid_2016 +hosp_rate_total_2016 + flu_pna_death_2016 +cvs_death_rate_2016 + pct_any_mental_illness_2016 + avg_monthly_SNAP_2016 + expend_per_cap_2016 + forclosure_rate_2016 + pct_unemployed_2016 + pct_hispanic_2016 + pct_black_2016 + pct_female_2016  +
+            rx_opioid_deaths_16 + pct_no_place_care_2014,
+                        data=ncqa_kff,nbest=5)
+summary(leaps)
+plot(leaps,scale="r2")
+
+
+```
+
+```{r model1, echo=FALSE}
+#adj R2 = 0.2677
+model1 <- lm(consumersat ~ pct_not_hav_pcp_2016 +
+             #pct_hispanic_2016 +
+               pct_unemployed_2016 +
+               pct_smoke_2016 +
+               pct_no_place_care_2014 +
+               no_total_md_pop +
+                   #no_pcp_per_pop  + 
+                   pct_citizen_2016 +
+                   flu_pna_death_2016 +
+                   insur_spend_per_cap_2014 +
+                   #economic_distress_rank_2016 +
+                   flu_pna_death_2016 +
+                   #cvs_death_rate_2016 +
+                   pct_unemployed_2016 +
+                   pct_any_mental_illness_2016 + 
+                   rx_opioid_deaths_16 +
+                  #`pct_pop_age0.18_2016` +
+                  `pct_pop_age19.25_2016` +
+               cancer_death_rate_2016 +
+                  #num_non_profit_beds_2016 + 
+                  num_for_profit_beds_2016,
+                   #firearm_death_rate_2016, 
+             data=ncqa_kff)
+
+summary(model1)
+```
+
+```{r state-based model 2, echo=FALSE}
+#adjusted R2= 0.1771
+ncqa_kff$insured_dens <- ncqa_kff$doc_dens * ncqa_kff$pct_uninsured_2016
+model2 <- lm(consumersat ~ pct_no_place_care_2014 + pct_smoke_2016 + cancer_death_rate_2016, data=ncqa_kff)
+summary(model2)
+```
+
+```{r state-based model3, echo=FALSE}
+#adjusted R2: 0.2778
+
+ncqa_kff$num_for_profit_beds_2016[is.na(ncqa_kff$num_for_profit_beds_2016)]<- 0
+ncqa_kff$pct_non_citizen_2016 <- (100- ncqa_kff$pct_citizen_2016)
+model3 <- lm(consumersat ~ pct_no_place_care_2014 + pct_any_mental_illness_2016 + insur_spend_per_cap_2014 +
+               pct_hispanic_2016 + num_for_profit_beds_2016  + cancer_death_rate_2016 +
+               plantype, data=ncqa_kff)
+summary(model3)
+confint(model3)
+summodel3<-tidy(model3) #%>% pull(var=p.value) %>% scales::pvalue()
+write.csv(summodel3, "summarymodel3.csv")
+ncqa_kff %>% 
+  map(~lm(consumersat ~ pct_no_place_care_2014 + pct_any_mental_illness_2016 + insur_spend_per_cap_2014 +
+               pct_hispanic_2016 + num_for_profit_beds_2016  + cancer_death_rate_2016 +
+               plantype, data=ncqa_kff)) %>% 
+  map(tidy) -> #4
+  list2
+
+kable(list2)
+
+augment(model3)
+#for-profit, HI, NY, CT - are the NAs just zero? if so, replace
+#interaction term with plantype and pcp?
+#sort plans by estimate when presenting info
+#use this model to predict satisfaction for each plan, and then report whether they under or over-perform, predict function
+#use augment 
+
+model3  %>% augment() -> tidymodel3
+dim(ncqa_kff)
+#get plan name and state
+tidymodel3
+ncqa_kff1 <- ncqa_kff %>% 
+  select(plan, state)
+predictions <- tidymodel3 %>% select(.fitted, .resid, pct_no_place_care_2014)
+predictions
+cbind(x=ncqa_kff1, y=predictions) -> predictions2
+kable(predictions2)
+
+#plot it
+#create df from model
+#predicted_df <- data.frame(consumersat = predict(model3,ncqa_kff), consumersat = ncqa_kff$consumersat)
+#plot with outliers
+#outlierplot<- ggplot() + geom_jitter(data=predictions2, aes(x=y..fitted,  y=y.pct_no_place_care_2014, color=plan)) 
+#+geom_line(data = predicted_df, aes(x=consumersat,  y=consumersat.1), inherit.aes = F) + theme_classic()
+
+#arrange(predictions2, by = "y..resid")
+car::vif(model3)
+vis_dat(ncqa_kff)
+
+```
+
+```{r lollipop figure, echo=FALSE}
+#plot lollipop with highest and lowest performers
+library(ggalt)
+library(tibble)
+library(broom)
+library(forcats)
+library(patchwork)
+
+predictions2 %>%
+  top_n(13, y..resid) %>%
+ggplot( aes(y=fct_reorder(x.plan,y..resid), x=y..resid)) +
+  geom_lollipop(point.colour = "green", point.size = 3,
+                horizontal = TRUE) +
+  scale_x_continuous(expand=c(0,0),
+                     breaks = seq(-10,10,by=1), limits = c(-5,5)) +
+  labs(x=NULL, y= NULL,
+       title = "",
+       subtitle = "",
+       caption = "")+
+  theme_minimal(base_family = "") ->
+p1
+ 
+predictions2 %>%
+  top_n(-10, y..resid) %>%
+  arrange(desc(y..resid)) %>%
+ggplot( aes(y=fct_reorder(x.plan,y..resid), x=y..resid)) +
+  geom_lollipop(point.colour = "red", point.size = 3,
+                horizontal = TRUE) +
+  scale_x_continuous(expand=c(0,0),
+                     breaks = seq(-10,10,by=1), limits = c(-5,5)) +
+ labs(x=NULL, y= NULL,
+       title = "",
+       subtitle = "",
+       caption = "")+
+  theme_minimal(base_family = "") ->
+p2
+ 
+figure2 <- p1 + p2 + plot_layout(ncol=1)
+figure2
+```
+
+
+##Bibliography

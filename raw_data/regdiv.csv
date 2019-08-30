@@ -1,0 +1,52 @@
+State full,state,division,region
+Illinois,IL,East North Central,Midwest
+Indiana,IN,East North Central,Midwest
+Michigan,MI,East North Central,Midwest
+Ohio,OH,East North Central,Midwest
+Wisconsin,WI,East North Central,Midwest
+Alabama,AL,East South Central,Midwest
+Kentucky,KY,East South Central,Midwest
+Mississippi,MS,East South Central,Midwest
+Tennessee,TN,East South Central,Midwest
+New Jersey,NJ,Middle Atlantic,Northeast
+New York,NY,Middle Atlantic,Northeast
+Pennsylvania,PA,Middle Atlantic,Northeast
+Arizona,AZ,Mountain,West
+Colorado,CO,Mountain,West
+Idaho,ID,Mountain,West
+Montana,MT,Mountain,West
+Nevada,NV,Mountain,West
+New Mexico,NM,Mountain,West
+Utah,UT,Mountain,West
+Wyoming,WY,Mountain,West
+Connecticut,CT,New England,Northeast
+Maine,ME,New England,Northeast
+Massachusetts,MA,New England,Northeast
+New Hampshire,NH,New England,Northeast
+Rhode Island,RI,New England,Northeast
+Vermont,VT,New England,Northeast
+Alaska,AK,Pacific,West
+California,CA,Pacific,West
+Hawaii,HI,Pacific,West
+Oregon,OR,Pacific,West
+Washington,WA,Pacific,West
+Delaware,DE,South Atlantic,South
+District of Columbia,DC,South Atlantic,South
+Florida,FL,South Atlantic,South
+Georgia,GA,South Atlantic,South
+Maryland,MD,South Atlantic,South
+North Carolina,NC,South Atlantic,South
+South Carolina,SC,South Atlantic,South
+Virginia,VA,South Atlantic,South
+West Virginia,WV,South Atlantic,South
+Iowa,IA,West North Central,Midwest
+Kansas,KS,West North Central,Midwest
+Minnesota,MN,West North Central,Midwest
+Missouri,MO,West North Central,Midwest
+Nebraska,NE,West North Central,Midwest
+North Dakota,ND,West North Central,Midwest
+South Dakota,SD,West North Central,Midwest
+Arkansas,AR,West South Central,South
+Louisiana,LA,West South Central,South
+Oklahoma,OK,West South Central,South
+Texas,TX,West South Central,South

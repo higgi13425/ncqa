@@ -14,7 +14,7 @@ To test `holepunch`, follow these steps:
 ```r
 library(holepunch)
 write_compendium_description(package = "NCQA_analysis", 
-                             description = "YAn Analysis of US Health Insurance Satisfaction")
+                             description = "An Analysis of US Health Insurance Satisfaction")
 # to write a description, with dependencies listed 
 # It's good practice to now go fill in the placeholder text.
 
