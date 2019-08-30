@@ -1,10 +1,10 @@
 # Example repo for demonstrating how to make a research compendium with the NCQA insurance analysis (using the magic of holepunch)
 
+ <!-- badges: start -->
+  [![Launch Rstudio Binder](http://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/higgi13425/ncqa/master?urlpath=rstudio)
+  <!-- badges: end -->
+  
 This repository is an example repo to test out the [`holepunch`](https://github.com/karthik/holepunch) package. It performs an analysis of NCQA insurance data.
-
-To test `holepunch`, follow these steps:
-
-
 
 # Now in RStudio
 
