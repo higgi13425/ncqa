@@ -39,4 +39,6 @@ build_binder()
 Now, run through analysis.R till you get to a plot
 ```
 
+Check it.
+
 Does clicking the badge launch binder for you? If not, please [file an issue](https://github.com/karthik/binder-test/issues/new).
