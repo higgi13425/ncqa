@@ -1,0 +1,61 @@
+Type: Compendium
+Package: NCQA_analysis
+Title: What the Package Does (One Line, Title Case)
+Version: 0.0.1
+Authors@R: 
+    person(given = "First",
+           family = "Last",
+           role = c("aut", "cre"),
+           email = "first.last@example.com",
+           comment = c(ORCID = "YOUR-ORCID-ID"))
+Description: An Analysis of US Health Insurance
+    Satisfaction
+License: What license it uses
+Depends: 
+    arsenal,
+    broom,
+    car,
+    caret,
+    choroplethr,
+    choroplethrMaps,
+    citr,
+    corrplot,
+    corrr,
+    cowplot,
+    data.table,
+    devtools,
+    dplyr,
+    ezknitr,
+    forcats,
+    ggalt,
+    ggplot2,
+    ggpubr,
+    janitor,
+    knitr,
+    leaps,
+    lme4,
+    lubridate,
+    magrittr,
+    MuMIn,
+    officer,
+    patchwork,
+    purrr,
+    readr,
+    readxl,
+    rmarkdown,
+    rvest,
+    scales,
+    sf,
+    stargazer,
+    stringr,
+    tibble,
+    tidycensus,
+    tidyverse,
+    tigris,
+    tools,
+    visdat,
+    xml2
+Remotes: 
+    thomasp85/patchwork
+Encoding: UTF-8
+LazyData: true
