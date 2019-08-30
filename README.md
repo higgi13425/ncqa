@@ -1,10 +1,8 @@
-# Example repo for demonstrating how to make a research compendium with holepunch with the NCQA insurance analysis
+# Example repo for demonstrating how to make a research compendium with the NCQA insurance analysis (using the magic of holepunch)
 
 This repository is an example repo to test out the [`holepunch`](https://github.com/karthik/holepunch) package. It performs an analysis of NCQA insurance data.
 
 To test `holepunch`, follow these steps:
-
-
 
 
 
